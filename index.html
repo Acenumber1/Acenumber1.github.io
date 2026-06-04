@@ -20,7 +20,6 @@ body {
     );
 }
 
-/* ── HEADER ── */
 .page-header {
     text-align: center;
     padding: 60px 40px 20px;
@@ -39,7 +38,6 @@ body {
     margin: 0;
 }
 
-/* ── GALLERY GRID ── */
 .gallery {
     display: flex;
     flex-wrap: wrap;
@@ -48,7 +46,6 @@ body {
     padding: 40px 60px 80px;
 }
 
-/* ── TILE / CARD ── */
 .tile {
     width: 220px;
     height: 220px;
@@ -66,16 +63,14 @@ body {
     box-shadow: 0 8px 32px rgba(0,0,0,0.6);
 }
 
-/* live p5 preview inside the card */
 .tile iframe {
     width: 100%;
     height: 100%;
     border: none;
-    pointer-events: none;   /* let clicks pass to the tile */
+    pointer-events: none;
     display: block;
 }
 
-/* dark tint + label overlay on the card */
 .tile-label {
     position: absolute;
     inset: 0;
@@ -129,27 +124,29 @@ body {
     transform: translateY(0);
 }
 
+/*
+  The wrap is sized to the TRUE canvas dimensions via JS.
+  transform-origin stays top-left so scale() shrinks it in-place;
+  we then use negative margin to re-center it.
+*/
 .overlay-frame-wrap {
-    width: 400px;
-    height: 400px;
     border-radius: 14px;
     overflow: hidden;
     box-shadow: 0 8px 48px rgba(0,0,0,0.6);
     opacity: 0;
-    transform: scale(0.6);
-    transition: width 0.25s ease, height 0.25s ease, opacity 0.35s ease, transform 0.35s ease;
+    transform-origin: top left;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+    /* width/height/transform set by JS */
 }
 
 .overlay.show .overlay-frame-wrap {
     opacity: 1;
-    transform: scale(1);
 }
 
 .overlay-frame-wrap iframe {
-    width: 100%;
-    height: 100%;
-    border: none;
     display: block;
+    border: none;
+    /* exact canvas size set by JS */
 }
 
 .overlay-hint {
@@ -182,10 +179,9 @@ body {
     </div>
 </div>
 
-<!-- Full-screen overlay -->
 <div class="overlay" id="overlay">
     <div class="overlay-title" id="overlay-title"></div>
-    <div class="overlay-frame-wrap">
+    <div class="overlay-frame-wrap" id="frame-wrap">
         <iframe id="overlay-frame" src="" allow="autoplay"></iframe>
     </div>
     <div class="overlay-hint">Click anywhere or press Esc to close</div>
@@ -195,32 +191,57 @@ body {
 const overlay      = document.getElementById("overlay");
 const overlayFrame = document.getElementById("overlay-frame");
 const overlayTitle = document.getElementById("overlay-title");
-const frameWrap    = overlayFrame.parentElement;
+const frameWrap    = document.getElementById("frame-wrap");
+
+// Default size before postMessage arrives
+let canvasW = 400, canvasH = 400;
+
+function applySize(w, h) {
+    canvasW = w;
+    canvasH = h;
+
+    // Set iframe and wrap to the TRUE canvas size — no squishing
+    overlayFrame.style.width  = w + "px";
+    overlayFrame.style.height = h + "px";
+    frameWrap.style.width     = w + "px";
+    frameWrap.style.height    = h + "px";
+
+    // Scale the whole wrap down so it fits within 90% of the viewport
+    const maxW  = window.innerWidth  * 0.9;
+    const maxH  = (window.innerHeight * 0.9) - 80; // leave room for title/hint
+    const scale = Math.min(1, maxW / w, maxH / h);
+
+    // With transform-origin: top left, we shift by half the scaled-down delta
+    // to keep it visually centered
+    const dx = -(w * (1 - scale)) / 2;
+    const dy = -(h * (1 - scale)) / 2;
+
+    frameWrap.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+}
 
 /* open */
 document.querySelectorAll(".tile").forEach(tile => {
     tile.addEventListener("click", () => {
-        const src   = tile.dataset.project;
-        const title = tile.dataset.title || "";
+        // Reset to default size until postMessage arrives
+        applySize(400, 400);
+        frameWrap.style.transform = "translate(0,0) scale(0.6)"; // start collapsed
 
-        overlayTitle.textContent = title;
-        overlayFrame.src = src;
+        overlayTitle.textContent = tile.dataset.title || "";
+        overlayFrame.src = tile.dataset.project;
         overlay.classList.add("show");
     });
 });
 
-/* listen for canvas size from sketch */
+/* resize on postMessage from sketch */
 window.addEventListener("message", e => {
     const { width, height } = e.data || {};
     if (!width || !height) return;
+    applySize(width, height);
+});
 
-    // clamp to 90vw / 90vh so it never spills off screen
-    const maxW = window.innerWidth  * 0.9;
-    const maxH = window.innerHeight * 0.9;
-    const scale = Math.min(1, maxW / width, maxH / height);
-
-    frameWrap.style.width  = Math.round(width  * scale) + "px";
-    frameWrap.style.height = Math.round(height * scale) + "px";
+/* also re-apply on window resize */
+window.addEventListener("resize", () => {
+    if (overlay.classList.contains("show")) applySize(canvasW, canvasH);
 });
 
 /* close */
@@ -228,9 +249,6 @@ function closeOverlay() {
     overlay.classList.remove("show");
     setTimeout(() => {
         overlayFrame.src = "";
-        // reset size for next open
-        frameWrap.style.width  = "400px";
-        frameWrap.style.height = "400px";
     }, 300);
 }
 

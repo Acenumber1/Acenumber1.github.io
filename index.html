@@ -1,21 +1,227 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Basic Page</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>p5.js Gallery</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    color: white;
+    font-family: Arial, sans-serif;
+    background: radial-gradient(
+        circle at 50% 60%,
+        #1a1a2e 0%,
+        #0d0d1a 100%
+    );
+}
+
+/* ── HEADER ── */
+.page-header {
+    text-align: center;
+    padding: 60px 40px 20px;
+}
+
+.page-title {
+    font-size: 52px;
+    letter-spacing: 2px;
+    margin: 0 0 8px;
+    font-weight: 700;
+}
+
+.page-subtitle {
+    font-size: 18px;
+    color: rgba(255,255,255,0.45);
+    margin: 0;
+}
+
+/* ── GALLERY GRID ── */
+.gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 32px;
+    justify-content: center;
+    padding: 40px 60px 80px;
+}
+
+/* ── TILE / CARD ── */
+.tile {
+    width: 220px;
+    height: 220px;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    position: relative;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    background: #111;
+}
+
+.tile:hover {
+    transform: scale(1.04);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+
+/* live p5 preview inside the card */
+.tile iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    pointer-events: none;   /* let clicks pass to the tile */
+    display: block;
+}
+
+/* dark tint + label overlay on the card */
+.tile-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    padding: 14px;
+    background: linear-gradient(
+        to top,
+        rgba(0,0,0,0.72) 0%,
+        rgba(0,0,0,0) 55%
+    );
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: rgba(255,255,255,0.9);
+    pointer-events: none;
+}
+
+/* ── OVERLAY ── */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 18px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 9999;
+}
+
+.overlay.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.overlay-title {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.overlay.show .overlay-title {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.overlay-frame-wrap {
+    width: min(80vw, 80vh);
+    height: min(80vw, 80vh);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 8px 48px rgba(0,0,0,0.6);
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.overlay.show .overlay-frame-wrap {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.overlay-frame-wrap iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+}
+
+.overlay-hint {
+    font-size: 13px;
+    color: rgba(255,255,255,0.35);
+    opacity: 0;
+    transition: opacity 0.35s ease 0.2s;
+}
+
+.overlay.show .overlay-hint {
+    opacity: 1;
+}
+</style>
 </head>
 <body>
-  <div id="gallery">
-    <div class="tile" data-project="projects/rope-swing/index.html">
-      Rope Swing
+
+<div class="page-header">
+    <h1 class="page-title">p5.js Gallery</h1>
+    <p class="page-subtitle">Click any sketch to expand</p>
+</div>
+
+<div class="gallery" id="gallery">
+    <div class="tile" data-project="projects/rope-swing/index.html" data-title="Rope Swing">
+        <iframe src="projects/rope-swing/index.html" loading="lazy" tabindex="-1" aria-hidden="true"></iframe>
+        <div class="tile-label">Rope Swing</div>
     </div>
 
-    <div class="tile" data-project="projects/physics-sim/index.html">
-      Physics Sim
+    <div class="tile" data-project="projects/physics-sim/index.html" data-title="Physics Sim">
+        <iframe src="projects/physics-sim/index.html" loading="lazy" tabindex="-1" aria-hidden="true"></iframe>
+        <div class="tile-label">Physics Sim</div>
     </div>
-  </div>
+</div>
 
-  <div id="overlay" class="hidden">
-    <div id="viewer"></div>
-  </div>
+<!-- Full-screen overlay -->
+<div class="overlay" id="overlay">
+    <div class="overlay-title" id="overlay-title"></div>
+    <div class="overlay-frame-wrap">
+        <iframe id="overlay-frame" src="" allow="autoplay"></iframe>
+    </div>
+    <div class="overlay-hint">Click anywhere or press Esc to close</div>
+</div>
+
+<script>
+const overlay      = document.getElementById("overlay");
+const overlayFrame = document.getElementById("overlay-frame");
+const overlayTitle = document.getElementById("overlay-title");
+
+/* open */
+document.querySelectorAll(".tile").forEach(tile => {
+    tile.addEventListener("click", () => {
+        const src   = tile.dataset.project;
+        const title = tile.dataset.title || "";
+
+        overlayTitle.textContent = title;
+        overlayFrame.src = src;
+        overlay.classList.add("show");
+    });
+});
+
+/* close */
+function closeOverlay() {
+    overlay.classList.remove("show");
+    // give transition time to finish before clearing src (stops audio/animation)
+    setTimeout(() => { overlayFrame.src = ""; }, 300);
+}
+
+overlay.addEventListener("click", closeOverlay);
+
+document.addEventListener("keydown", e => {
+    if (e.key === "Escape") closeOverlay();
+});
+</script>
+
 </body>
 </html>

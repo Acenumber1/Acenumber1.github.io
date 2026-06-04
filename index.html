@@ -130,14 +130,14 @@ body {
 }
 
 .overlay-frame-wrap {
-    width: min(80vw, 80vh);
-    height: min(80vw, 80vh);
+    width: 400px;
+    height: 400px;
     border-radius: 14px;
     overflow: hidden;
     box-shadow: 0 8px 48px rgba(0,0,0,0.6);
     opacity: 0;
     transform: scale(0.6);
-    transition: opacity 0.35s ease, transform 0.35s ease;
+    transition: width 0.25s ease, height 0.25s ease, opacity 0.35s ease, transform 0.35s ease;
 }
 
 .overlay.show .overlay-frame-wrap {
@@ -176,7 +176,6 @@ body {
         <iframe src="https://editor.p5js.org/Ace_number_1/embed/6iMF8HHqB" loading="lazy" tabindex="-1" aria-hidden="true"></iframe>
         <div class="tile-label">Rope Swing</div>
     </div>
-
     <div class="tile" data-project="https://editor.p5js.org/Ace_number_1/embed/zVtp8zGmJ" data-title="Physics Sim">
         <iframe src="https://editor.p5js.org/Ace_number_1/embed/zVtp8zGmJ" loading="lazy" tabindex="-1" aria-hidden="true"></iframe>
         <div class="tile-label">Physics Sim</div>
@@ -196,6 +195,7 @@ body {
 const overlay      = document.getElementById("overlay");
 const overlayFrame = document.getElementById("overlay-frame");
 const overlayTitle = document.getElementById("overlay-title");
+const frameWrap    = overlayFrame.parentElement;
 
 /* open */
 document.querySelectorAll(".tile").forEach(tile => {
@@ -209,15 +209,32 @@ document.querySelectorAll(".tile").forEach(tile => {
     });
 });
 
+/* listen for canvas size from sketch */
+window.addEventListener("message", e => {
+    const { width, height } = e.data || {};
+    if (!width || !height) return;
+
+    // clamp to 90vw / 90vh so it never spills off screen
+    const maxW = window.innerWidth  * 0.9;
+    const maxH = window.innerHeight * 0.9;
+    const scale = Math.min(1, maxW / width, maxH / height);
+
+    frameWrap.style.width  = Math.round(width  * scale) + "px";
+    frameWrap.style.height = Math.round(height * scale) + "px";
+});
+
 /* close */
 function closeOverlay() {
     overlay.classList.remove("show");
-    // give transition time to finish before clearing src (stops audio/animation)
-    setTimeout(() => { overlayFrame.src = ""; }, 300);
+    setTimeout(() => {
+        overlayFrame.src = "";
+        // reset size for next open
+        frameWrap.style.width  = "400px";
+        frameWrap.style.height = "400px";
+    }, 300);
 }
 
 overlay.addEventListener("click", closeOverlay);
-
 document.addEventListener("keydown", e => {
     if (e.key === "Escape") closeOverlay();
 });

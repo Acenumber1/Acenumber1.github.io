@@ -116,7 +116,7 @@ body {
     letter-spacing: 1px;
     opacity: 0;
     transform: translateY(-10px);
-    transition: opacity 0.35s ease, transform 0.35s ease;
+    transition: opacity 0.35s ease, width 0.25s ease, height 0.25s ease;
 }
 
 .overlay.show .overlay-title {
@@ -134,8 +134,8 @@ body {
     overflow: hidden;
     box-shadow: 0 8px 48px rgba(0,0,0,0.6);
     opacity: 0;
-    transform-origin: top left;
-    transition: opacity 0.35s ease, transform 0.35s ease;
+
+    transition: opacity 0.35s ease, width 0.25s ease, height 0.25s ease;
     /* width/height/transform set by JS */
 }
 
@@ -200,23 +200,22 @@ function applySize(w, h) {
     canvasW = w;
     canvasH = h;
 
-    // Set iframe and wrap to the TRUE canvas size — no squishing
-    overlayFrame.style.width  = w + "px";
-    overlayFrame.style.height = h + "px";
-    frameWrap.style.width     = w + "px";
-    frameWrap.style.height    = h + "px";
-
-    // Scale the whole wrap down so it fits within 90% of the viewport
     const maxW  = window.innerWidth  * 0.9;
-    const maxH  = (window.innerHeight * 0.9) - 80; // leave room for title/hint
+    const maxH  = (window.innerHeight * 0.9) - 80;
     const scale = Math.min(1, maxW / w, maxH / h);
 
-    // With transform-origin: top left, we shift by half the scaled-down delta
-    // to keep it visually centered
-    const dx = -(w * (1 - scale)) / 2;
-    const dy = -(h * (1 - scale)) / 2;
+    const displayW = Math.round(w * scale);
+    const displayH = Math.round(h * scale);
 
-    frameWrap.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+    // Wrap = visible display size (actually changes the box)
+    frameWrap.style.width  = displayW + "px";
+    frameWrap.style.height = displayH + "px";
+
+    // Iframe = true canvas size, scaled down via transform
+    overlayFrame.style.width           = w + "px";
+    overlayFrame.style.height          = h + "px";
+    overlayFrame.style.transformOrigin = "top left";
+    overlayFrame.style.transform       = "scale(" + scale + ")";
 }
 
 /* open */
@@ -224,7 +223,7 @@ document.querySelectorAll(".tile").forEach(tile => {
     tile.addEventListener("click", () => {
         // Reset to default size until postMessage arrives
         applySize(400, 400);
-        frameWrap.style.transform = "translate(0,0) scale(0.6)"; // start collapsed
+
 
         overlayTitle.textContent = tile.dataset.title || "";
         overlayFrame.src = tile.dataset.project;
